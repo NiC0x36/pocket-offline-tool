@@ -1,1 +1,119 @@
- 
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Offline Pocket Tool</title>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+    <style>
+        body { font-family: sans-serif; padding: 2em; background: #f9f9f9; }
+        h1 { margin-bottom: 1em; }
+        table { border-collapse: collapse; width: 100%; background: white; }
+        th, td { border: 1px solid #ccc; padding: 0.5em; text-align: left; }
+        th { background: #eaeaea; }
+        input, select, button { margin: 0.2em; padding: 0.3em; }
+        a { color: #0077cc; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+<h1>Offline Pocket Tool</h1>
+
+<!-- CSV Datei laden -->
+<input type="file" id="csvFileInput" accept=".csv">
+<button onclick="downloadCSV()">💾 CSV speichern</button>
+
+<!-- Neue Einträge -->
+<h3>Neuen Eintrag hinzufügen</h3>
+<input id="newTitle" placeholder="Titel" size="30">
+<input id="newURL" placeholder="URL" size="30">
+<input id="newTags" placeholder="Tags (mit Leerzeichen)">
+<select id="newStatus">
+    <option value="unread">unread</option>
+    <option value="read">read</option>
+</select>
+<button onclick="addRow()">➕ Hinzufügen</button>
+
+<!-- Tabelle -->
+<div id="table-container"></div>
+
+<script>
+    let pocketData = [];
+
+    document.getElementById('csvFileInput').addEventListener('change', function (e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: function (results) {
+                pocketData = results.data;
+                renderTable();
+            }
+        });
+    });
+
+    function renderTable() {
+        let html = "<table><thead><tr><th>Titel</th><th>URL</th><th>Tags</th><th>Status</th><th>Löschen</th></tr></thead><tbody>";
+        pocketData.forEach((row, index) => {
+            html += "<tr>";
+            html += `<td><input value="${row.title || ''}" onchange="updateField(${index}, 'title', this.value)"></td>`;
+            html += `<td><a href="${row.url}" target="_blank">🔗</a>
+               <input value="${row.url || ''}" onchange="updateField(${index}, 'url', this.value)" style="width: 80%">
+             </td>`;
+            html += `<td><input value="${row.tags || ''}" onchange="updateField(${index}, 'tags', this.value)"></td>`;
+            html += `<td>
+               <select onchange="updateField(${index}, 'status', this.value)">
+                 <option ${row.status === 'unread' ? 'selected' : ''}>unread</option>
+                 <option ${row.status === 'read' ? 'selected' : ''}>read</option>
+               </select>
+             </td>`;
+            html += `<td><button onclick="deleteRow(${index})">🗑️</button></td>`;
+            html += "</tr>";
+        });
+        html += "</tbody></table>";
+        document.getElementById('table-container').innerHTML = html;
+    }
+
+
+    function updateField(index, field, value) {
+        pocketData[index][field] = value;
+    }
+
+    function deleteRow(index) {
+        pocketData.splice(index, 1);
+        renderTable();
+    }
+
+    function addRow() {
+        const title = document.getElementById('newTitle').value.trim();
+        const url = document.getElementById('newURL').value.trim();
+        const tags = document.getElementById('newTags').value.trim();
+        const status = document.getElementById('newStatus').value;
+
+        if (!title || !url) {
+            alert("Titel und URL sind erforderlich.");
+            return;
+        }
+
+        const nowUnix = Math.floor(Date.now() / 1000);
+        pocketData.push({ title, url, time_added: nowUnix, tags, status });
+        document.getElementById('newTitle').value = "";
+        document.getElementById('newURL').value = "";
+        document.getElementById('newTags').value = "";
+        renderTable();
+    }
+
+    function downloadCSV() {
+        const csv = Papa.unparse(pocketData);
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", "pocket-export.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+</script>
+</body>
+</html>

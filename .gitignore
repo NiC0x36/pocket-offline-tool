@@ -1,1 +1,2 @@
- 
+ # Don't track your Pocket CSV-Files
+*.csv
