@@ -1,2 +1,9 @@
  # Don't track your Pocket CSV-Files
 *.csv
+
+# Deliverables
+*.zip
+
+# JetBrains IDE settings
+*.iml
+.idea/

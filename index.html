@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <title>Offline Pocket Tool</title>
@@ -9,35 +9,41 @@
         h1 { margin-bottom: 1em; }
         table { border-collapse: collapse; width: 100%; background: white; }
         th, td { border: 1px solid #ccc; padding: 0.5em; text-align: left; }
-        th { background: #eaeaea; }
+        th { background: #eaeaea; cursor: pointer; }
         input, select, button { margin: 0.2em; padding: 0.3em; }
         a { color: #0077cc; text-decoration: none; }
         a:hover { text-decoration: underline; }
+        table input { width: 80%; }
     </style>
 </head>
 <body>
 <h1>Offline Pocket Tool</h1>
 
-<!-- CSV Datei laden -->
 <input type="file" id="csvFileInput" accept=".csv">
-<button onclick="downloadCSV()">💾 CSV speichern</button>
+<button onclick="downloadCSV()">💾 Save CSV</button>
 
-<!-- Neue Einträge -->
-<h3>Neuen Eintrag hinzufügen</h3>
+<h3>Add new Entry</h3>
 <input id="newTitle" placeholder="Titel" size="30">
 <input id="newURL" placeholder="URL" size="30">
-<input id="newTags" placeholder="Tags (mit Leerzeichen)">
+<input id="newTags" placeholder="Tags (add several with Spaces)">
 <select id="newStatus">
     <option value="unread">unread</option>
     <option value="read">read</option>
 </select>
-<button onclick="addRow()">➕ Hinzufügen</button>
+<button onclick="addRow()">➕ Add</button>
 
-<!-- Tabelle -->
+<h3>Existing Entries</h3>
+
+<label for="tagFilter">Filter by Tag:</label>
+<select id="tagFilter">
+    <option value="">All</option>
+</select>
+
 <div id="table-container"></div>
 
 <script>
     let pocketData = [];
+    let currentSort = { column: null, asc: true };
 
     document.getElementById('csvFileInput').addEventListener('change', function (e) {
         const file = e.target.files[0];
@@ -47,33 +53,62 @@
             skipEmptyLines: true,
             complete: function (results) {
                 pocketData = results.data;
+                populateTagFilter();
                 renderTable();
             }
         });
     });
 
+    document.getElementById('tagFilter').addEventListener('change', renderTable);
+
+    function populateTagFilter() {
+        const select = document.getElementById('tagFilter');
+        const tagSet = new Set();
+        pocketData.forEach(item => {
+            const tags = item.tags?.split(/\s+/) || [];
+            tags.forEach(tag => tagSet.add(tag));
+        });
+        select.innerHTML = '<option value="">All</option>';
+        [...tagSet].sort().forEach(tag => {
+            const opt = document.createElement('option');
+            opt.value = tag;
+            opt.textContent = tag;
+            select.appendChild(opt);
+        });
+    }
+
     function renderTable() {
-        let html = "<table><thead><tr><th>Titel</th><th>URL</th><th>Tags</th><th>Status</th><th>Löschen</th></tr></thead><tbody>";
-        pocketData.forEach((row, index) => {
+        const selectedTag = document.getElementById('tagFilter').value;
+        const dataToShow = selectedTag
+            ? pocketData.filter(row => row.tags?.split(/\s+/).includes(selectedTag))
+            : pocketData;
+
+        let html = "<table><thead><tr>";
+        ['title', 'url', 'button', 'tags', 'status'].forEach(col => {
+            html += `<th onclick=\"sortBy('${col}')\">${col.charAt(0).toUpperCase() + col.slice(1)}</th>`;
+        });
+        html += "<th>Löschen</th></tr></thead><tbody>";
+
+        dataToShow.forEach((row) => {
+            const trueIndex = pocketData.indexOf(row);
             html += "<tr>";
-            html += `<td><input value="${row.title || ''}" onchange="updateField(${index}, 'title', this.value)"></td>`;
-            html += `<td><a href="${row.url}" target="_blank">🔗</a>
-               <input value="${row.url || ''}" onchange="updateField(${index}, 'url', this.value)" style="width: 80%">
-             </td>`;
-            html += `<td><input value="${row.tags || ''}" onchange="updateField(${index}, 'tags', this.value)"></td>`;
+            html += `<td><input value="${row.title || ''}" onchange="updateField(${trueIndex}, 'title', this.value)"></td>`;
+            html += `<td><a href="${row.url}" target="_blank">🔗</a>`
+            html += `<td><input value="${row.url || ''}" onchange="updateField(${trueIndex}, 'url', this.value)" style="width: 80%"></td>`;
+            html += `<td><input value="${row.tags || ''}" onchange="updateField(${trueIndex}, 'tags', this.value)"></td>`;
             html += `<td>
-               <select onchange="updateField(${index}, 'status', this.value)">
-                 <option ${row.status === 'unread' ? 'selected' : ''}>unread</option>
-                 <option ${row.status === 'read' ? 'selected' : ''}>read</option>
-               </select>
-             </td>`;
-            html += `<td><button onclick="deleteRow(${index})">🗑️</button></td>`;
+                       <select onchange="updateField(${trueIndex}, 'status', this.value)">
+                         <option ${row.status === 'unread' ? 'selected' : ''}>unread</option>
+                         <option ${row.status === 'read' ? 'selected' : ''}>read</option>
+                       </select>
+                     </td>`;
+            html += `<td><button onclick="deleteRow(${trueIndex})">🗑️</button></td>`;
             html += "</tr>";
         });
+
         html += "</tbody></table>";
         document.getElementById('table-container').innerHTML = html;
     }
-
 
     function updateField(index, field, value) {
         pocketData[index][field] = value;
@@ -82,6 +117,7 @@
     function deleteRow(index) {
         pocketData.splice(index, 1);
         renderTable();
+        populateTagFilter();
     }
 
     function addRow() {
@@ -91,7 +127,7 @@
         const status = document.getElementById('newStatus').value;
 
         if (!title || !url) {
-            alert("Titel und URL sind erforderlich.");
+            alert("Title and URL are necessary.");
             return;
         }
 
@@ -101,6 +137,7 @@
         document.getElementById('newURL').value = "";
         document.getElementById('newTags').value = "";
         renderTable();
+        populateTagFilter();
     }
 
     function downloadCSV() {
@@ -113,6 +150,25 @@
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+    }
+
+    function sortBy(column) {
+        if (currentSort.column === column) {
+            currentSort.asc = !currentSort.asc;
+        } else {
+            currentSort.column = column;
+            currentSort.asc = true;
+        }
+
+        pocketData.sort((a, b) => {
+            const valA = (a[column] || '').toLowerCase();
+            const valB = (b[column] || '').toLowerCase();
+            if (valA < valB) return currentSort.asc ? -1 : 1;
+            if (valA > valB) return currentSort.asc ? 1 : -1;
+            return 0;
+        });
+
+        renderTable();
     }
 </script>
 </body>
